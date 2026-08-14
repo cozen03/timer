@@ -1,227 +1,133 @@
-시간 설정 기능이 조금 아쉽게 느껴지셨군요! 직접 숫자를 입력하거나 정해진 시간(1분, 3분 등)으로만 덮어쓰는 방식 대신, 원하는 시간을 쉽게 더하고 뺄 수 있는 '미세 조절' 기능과 더 직관적인 버튼 배치를 추가하여 시간 설정 기능을 대폭 업그레이드했습니다.
-
-기존 코드에서 app.py 파일만 아래 코드로 덮어쓰기 하시면 됩니다.
-
-📝 수정된 app.py (시간 설정 기능 강화)
-Python
 import streamlit as st
-import time
 
 # ---------------------------------------------------------
-# 1. 페이지 기본 설정 및 CSS 디자인 적용
+# 1. 페이지 기본 설정
 # ---------------------------------------------------------
-st.set_page_config(page_title="⏱️ 나만의 반응형 타이머", page_icon="⏱️", layout="centered")
+# 웹 브라우저 탭의 제목과 아이콘, 그리고 화면을 중앙 정렬로 설정합니다.
+st.set_page_config(page_title="🎮 맞춤형 게임 추천기", page_icon="🎲", layout="centered")
 
-st.markdown("""
-<style>
-    .timer-card {
-        background-color: #ffffff;
-        border-radius: 20px;
-        padding: 40px 20px;
-        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-        text-align: center;
-        margin-bottom: 20px;
-        border: 2px solid #f0f2f6;
+# ---------------------------------------------------------
+# 2. 내부 데이터베이스 만들기 (외부 API 대체)
+# ---------------------------------------------------------
+# 외부 API를 사용하지 않으므로, 프로그램 내부에서 사용할 게임 목록을 딕셔너리 리스트로 만듭니다.
+# 학생들은 이 목록에 자신이 좋아하는 게임을 더 추가해 볼 수 있습니다.
+GAME_DB = [
+    {
+        "이름": "스타듀 밸리 (Stardew Valley)", 
+        "장르": "시뮬레이션", 
+        "인원": "혼자서도, 친구와도", 
+        "분위기": "힐링/느긋함", 
+        "설명": "할아버지의 낡은 농장을 물려받아 나만의 농장으로 가꾸고 마을 사람들과 교류하는 평화로운 게임입니다."
+    },
+    {
+        "이름": "리그 오브 레전드 (LoL)", 
+        "장르": "전략/AOS", 
+        "인원": "여럿이서 (멀티플레이)", 
+        "분위기": "경쟁/긴장감", 
+        "설명": "5명이 한 팀이 되어 각자의 역할을 맡아 상대방의 진영을 파괴하는 치열한 전략 게임입니다."
+    },
+    {
+        "이름": "마인크래프트 (Minecraft)", 
+        "장르": "샌드박스", 
+        "인원": "혼자서도, 친구와도", 
+        "분위기": "자유/창의적", 
+        "설명": "네모난 블록으로 이루어진 세상에서 집을 짓고, 탐험하며 상상하는 모든 것을 만들 수 있는 게임입니다."
+    },
+    {
+        "이름": "포탈 2 (Portal 2)", 
+        "장르": "퍼즐", 
+        "인원": "혼자서 (싱글플레이)", 
+        "분위기": "두뇌 회전", 
+        "설명": "공간을 연결하는 포탈건을 쏴서 기상천외한 퍼즐을 풀고 실험실을 탈출하는 명작 게임입니다."
+    },
+    {
+        "이름": "잇 테익스 투 (It Takes Two)", 
+        "장르": "액션/어드벤처", 
+        "인원": "여럿이서 (멀티플레이)", 
+        "분위기": "협동/유쾌함", 
+        "설명": "반드시 두 명이서 힘을 합쳐야만 깰 수 있는 퍼즐과 액션이 가득한 협동 전용 게임입니다."
+    },
+    {
+        "이름": "슬레이 더 스파이어 (Slay the Spire)", 
+        "장르": "전략/카드", 
+        "인원": "혼자서 (싱글플레이)", 
+        "분위기": "두뇌 회전", 
+        "설명": "나만의 카드 덱을 만들어서 다양한 몬스터들을 물리치고 탑의 꼭대기까지 올라가는 게임입니다."
     }
-    .timer-text {
-        font-size: clamp(3rem, 15vw, 8rem);
-        font-weight: 900;
-        color: #1f77b4;
-        font-family: 'Courier New', Courier, monospace;
-        line-height: 1.2;
-        margin: 10px 0;
-    }
-    /* 버튼 텍스트 크기 미세조정 */
-    .stButton>button {
-        font-weight: bold;
-    }
-</style>
-""", unsafe_allow_html=True)
-
+]
 
 # ---------------------------------------------------------
-# 2. 상태 저장소 (Session State) 초기화
+# 3. 화면 레이아웃 및 사용자 입력 받기
 # ---------------------------------------------------------
-if 'state' not in st.session_state:
-    st.session_state.state = 'stopped'  # stopped, running, paused, finished
-if 'total_seconds' not in st.session_state:
-    st.session_state.total_seconds = 0
-if 'remaining_seconds' not in st.session_state:
-    st.session_state.remaining_seconds = 0
-if 'target_time' not in st.session_state:
-    st.session_state.target_time = 0.0
-if 'show_balloons' not in st.session_state:
-    st.session_state.show_balloons = False
+st.title("🎲 나에게 딱 맞는 게임 찾기")
+st.write("몇 가지 질문에 답해주시면, 취향에 맞는 게임을 추천해 드립니다!")
 
-if 'in_min' not in st.session_state:
-    st.session_state.in_min = 0
-if 'in_sec' not in st.session_state:
-    st.session_state.in_sec = 0
+# 구분선을 그어 화면을 깔끔하게 나눕니다.
+st.divider() 
 
+# st.selectbox를 사용해 사용자에게 질문하고 답변을 변수에 저장합니다.
+st.subheader("Q1. 어떤 분위기의 게임을 원하시나요?")
+selected_mood = st.selectbox(
+    "원하는 분위기를 선택하세요.",
+    ["상관없음", "힐링/느긋함", "경쟁/긴장감", "자유/창의적", "두뇌 회전", "협동/유쾌함"]
+)
+
+st.subheader("Q2. 주로 몇 명이서 게임을 하시나요?")
+selected_players = st.selectbox(
+    "플레이 인원을 선택하세요.",
+    ["상관없음", "혼자서 (싱글플레이)", "여럿이서 (멀티플레이)", "혼자서도, 친구와도"]
+)
+
+st.write("") # 약간의 여백 주기
 
 # ---------------------------------------------------------
-# 3. 타이머 제어 함수
+# 4. 추천 알고리즘 및 결과 출력
 # ---------------------------------------------------------
-def set_time(minutes, seconds):
-    """지정된 시간으로 덮어씁니다."""
-    st.session_state.in_min = minutes
-    st.session_state.in_sec = seconds
-    st.session_state.state = 'stopped'
-
-def add_time(minutes, seconds):
-    """현재 설정된 시간에 분/초를 더하거나 뺍니다."""
-    # 현재 설정된 총 시간을 초로 계산
-    total = (st.session_state.in_min * 60) + st.session_state.in_sec
-    # 추가할 시간을 초 단위로 더함
-    total += (minutes * 60) + seconds
+# 버튼을 눌렀을 때만 아래의 코드가 실행되도록 합니다.
+if st.button("🔍 추천 게임 보기", use_container_width=True, type="primary"):
     
-    # 0초보다 작아지지 않게 방지
-    if total < 0:
-        total = 0
-    # 99분 59초를 넘지 않게 방지 (에러 방지)
-    if total > 5999:
-        total = 5999
+    st.divider()
+    st.subheader("💡 추천 결과")
+    
+    # 추천된 게임을 담을 빈 리스트를 만듭니다.
+    recommended_games = []
+    
+    # GAME_DB 안에 있는 모든 게임을 하나씩 꺼내어 검사합니다.
+    for game in GAME_DB:
+        # 조건 일치 여부를 확인할 변수 (기본은 True)
+        match_mood = True
+        match_players = True
         
-    st.session_state.in_min = total // 60
-    st.session_state.in_sec = total % 60
-    st.session_state.state = 'stopped'
-
-def start_timer():
-    total = (st.session_state.in_min * 60) + st.session_state.in_sec
-    if total > 0:
-        st.session_state.total_seconds = total
-        st.session_state.remaining_seconds = total
-        st.session_state.target_time = time.monotonic() + total
-        st.session_state.state = 'running'
+        # 1. 분위기 조건 검사 ("상관없음"이 아닐 때만 검사)
+        if selected_mood != "상관없음":
+            if game["분위기"] != selected_mood:
+                match_mood = False
+                
+        # 2. 인원 조건 검사 ("상관없음"이 아닐 때만 검사)
+        if selected_players != "상관없음":
+            if game["인원"] != selected_players:
+                match_players = False
+                
+        # 두 가지 조건을 모두 만족하면 추천 리스트에 추가합니다.
+        if match_mood and match_players:
+            recommended_games.append(game)
+            
+    # 결과 출력하기
+    if len(recommended_games) > 0:
+        st.success(f"총 {len(recommended_games)}개의 게임을 찾았습니다!")
+        
+        # 추천된 게임들을 예쁜 상자(st.container) 안에 출력합니다.
+        for game in recommended_games:
+            with st.container(border=True): # 테두리가 있는 상자 생성
+                st.markdown(f"### 🎮 {game['이름']}")
+                
+                # 모바일 화면에서도 자연스럽게 보이도록 컬럼을 나눕니다.
+                col1, col2, col3 = st.columns(3)
+                col1.write(f"**🏷️ 장르:** {game['장르']}")
+                col2.write(f"**👥 인원:** {game['인원']}")
+                col3.write(f"**✨ 분위기:** {game['분위기']}")
+                
+                st.info(f"**게임 설명:** {game['설명']}")
     else:
-        st.warning("시간을 1초 이상 설정해 주세요!")
-
-def pause_timer():
-    st.session_state.state = 'paused'
-    st.session_state.remaining_seconds = st.session_state.target_time - time.monotonic()
-
-def resume_timer():
-    st.session_state.state = 'running'
-    st.session_state.target_time = time.monotonic() + st.session_state.remaining_seconds
-
-def reset_timer():
-    st.session_state.state = 'stopped'
-    st.session_state.remaining_seconds = 0
-    # 초기화 버튼을 누르면 입력창도 0으로 되돌립니다.
-    st.session_state.in_min = 0
-    st.session_state.in_sec = 0
-
-
-# ---------------------------------------------------------
-# 4. 완료 시 효과
-# ---------------------------------------------------------
-if st.session_state.show_balloons:
-    st.balloons()
-    st.session_state.show_balloons = False
-
-
-# ---------------------------------------------------------
-# 5. 화면 레이아웃 구성
-# ---------------------------------------------------------
-st.title("⏱️ 나만의 반응형 타이머")
-
-is_active = st.session_state.state in ['running', 'paused']
-
-# --- [시간 설정 기능 강화 영역] ---
-st.markdown("##### ⚙️ 시간 설정")
-
-# 1. 덮어쓰기 (간편 타이머)
-st.caption("고정 시간 선택")
-q1, q2, q3, q4 = st.columns(4)
-with q1:
-    if st.button("1분", use_container_width=True, disabled=is_active): set_time(1, 0)
-with q2:
-    if st.button("3분", use_container_width=True, disabled=is_active): set_time(3, 0)
-with q3:
-    if st.button("5분", use_container_width=True, disabled=is_active): set_time(5, 0)
-with q4:
-    if st.button("10분", use_container_width=True, disabled=is_active): set_time(10, 0)
-
-# 2. 미세 조절 (더하기/빼기)
-st.caption("시간 더하기 / 빼기")
-a1, a2, a3, a4 = st.columns(4)
-with a1:
-    if st.button("+ 1분", use_container_width=True, disabled=is_active): add_time(1, 0)
-with a2:
-    if st.button("- 1분", use_container_width=True, disabled=is_active): add_time(-1, 0)
-with a3:
-    if st.button("+ 10초", use_container_width=True, disabled=is_active): add_time(0, 10)
-with a4:
-    if st.button("- 10초", use_container_width=True, disabled=is_active): add_time(0, -10)
-
-# 3. 직접 입력
-st.caption("직접 입력")
-c1, c2 = st.columns(2)
-with c1:
-    st.number_input("분 (Minutes)", min_value=0, max_value=99, key="in_min", disabled=is_active)
-with c2:
-    st.number_input("초 (Seconds)", min_value=0, max_value=59, key="in_sec", disabled=is_active)
-
-st.divider() # 구분선 추가
-
-
-# ---------------------------------------------------------
-# 6. 실시간 타이머 화면
-# ---------------------------------------------------------
-@st.fragment(run_every=0.1)
-def display_timer():
-    if st.session_state.state == 'running':
-        now = time.monotonic()
-        rem = st.session_state.target_time - now
-        
-        if rem <= 0:
-            st.session_state.remaining_seconds = 0
-            st.session_state.state = 'finished'
-            st.session_state.show_balloons = True
-            st.rerun()
-        else:
-            st.session_state.remaining_seconds = rem
-
-    rem_s = int(st.session_state.remaining_seconds)
-    mins = rem_s // 60
-    secs = rem_s % 60
-    time_str = f"{mins:02d}:{secs:02d}"
-
-    st.markdown(f"<div class='timer-card'><div class='timer-text'>{time_str}</div></div>", unsafe_allow_html=True)
-
-    progress = 0.0
-    if st.session_state.total_seconds > 0:
-        progress = st.session_state.remaining_seconds / st.session_state.total_seconds
-    
-    st.progress(max(0.0, min(1.0, progress)))
-
-    if st.session_state.state == 'finished':
-        st.success("🎉 타이머가 종료되었습니다! 수고하셨습니다.")
-
-display_timer()
-
-
-# ---------------------------------------------------------
-# 7. 조작 버튼 영역
-# ---------------------------------------------------------
-st.write("")
-b1, b2 = st.columns(2)
-
-with b1:
-    if st.session_state.state == 'stopped' or st.session_state.state == 'finished':
-        if st.button("▶️ 시작 (Start)", use_container_width=True, type="primary"):
-            start_timer()
-            st.rerun()
-    elif st.session_state.state == 'running':
-        if st.button("⏸️ 일시정지 (Pause)", use_container_width=True):
-            pause_timer()
-            st.rerun()
-    elif st.session_state.state == 'paused':
-        if st.button("▶️ 계속 (Resume)", use_container_width=True, type="primary"):
-            resume_timer()
-            st.rerun()
-
-with b2:
-    if st.button("🔄 초기화 (Reset)", use_container_width=True):
-        reset_timer()
-        st.rerun()
+        # 조건에 맞는 게임이 없을 때 보여줄 메시지입니다.
+        st.warning("앗! 현재 선택하신 조건에 딱 맞는 게임이 없습니다. 조건을 조금 바꿔보시는 건 어떨까요?")
